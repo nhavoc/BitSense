@@ -1,9 +1,12 @@
 import datetime as DT # date library for parsing dates
 import time
 import re
+import math
 import tweepy
 import json
 import operator # for sorting dictionaries
+import nltk
+nltk.download('punkt')
 from tweepy import OAuthHandler
 from textblob import TextBlob
 
@@ -21,6 +24,7 @@ class TwitterClient(object):
         Class constructor or initialization method.
         '''
         # keys and tokens from the Twitter Dev Console {REPLACE NAKUL's with a new accounts info}
+        # NOTE: Twitter Rate Limit is 180 calls to the search API every 15 minutes
         consumer_key = '9DTwWsyG7fW8kOwjAeVAcewTn'
         consumer_secret = 'wYe6CC9IFSYWpD3Aw7VOPUQTKcBRBXLlzkynQZIPNO0N2WObXq'
         access_token = '140572718-iEofi8MBOS8akd4iqf1LpBX1xbo4SPHXxqgKhOC3'
@@ -33,19 +37,35 @@ class TwitterClient(object):
             # set access token and secret
             self.auth.set_access_token(access_token, access_token_secret)
             # create tweepy API object to fetch tweets
-            self.api = tweepy.API(self.auth)
+            self.api = tweepy.API(self.auth) #, wait_on_rate_limit=True) #NOTE: In production, we want this script to wait for the rate limiting to be over
         except:
             print("Error: Authentication Failed")
 
-    def three_days_before(self, date = DT.date.today()):
-        # Return the date for 3 days before DT in the format YYYY-MM-DD
-        return (date - DT.timedelta(days=3)).strftime('%Y-%m-%d')
+    def days_before(self, days = 1):
+        # Return the date for `days` days before DT in the format YYYY-MM-DD
+        return (DT.date.today() - DT.timedelta(days=days)).strftime('%Y-%m-%d')
+
+    #-- KEYWORD ANALYSIS FUNCTIONS
+    #tf computes "term frequency" which is the number of times a word appears in a document
+    def tf(self, word, blob):
+        return blob.words.count(word) / len(blob.words)
+    #returns the number of documents containing word
+    def n_containing(self, word, bloblist):
+        return sum(1 for blob in bloblist if word in blob.words)
+    #computes "inverse document frequency" which measures how common a word is among all documents in bloblist
+    def idf(self, word, bloblist):
+        return math.log(len(bloblist) / (1 + self.n_containing(word, bloblist)))
+    #computes the TF-IDF score. It is simply the product of tf and idf.
+    def tfidf(self, word, blob, bloblist):
+        return self.tf(word, blob) * self.idf(word, bloblist)
+    # -- END KEYWORD ANALYSIS
+
 
     def clean_tweet(self, tweetText):
         text = tweetText
 
         #Remove all line breaks
-        text = text.replace('\n', '').replace('\r', '').rstrip('\r\n')
+        text = text.replace('\n', ' ').replace('\r', '').replace('|', ' ').rstrip('\r\n')
 
         # Remove all non-ascii characters
         text = ''.join((c for c in tweetText if 0 < ord(c) < 127))
@@ -96,6 +116,23 @@ class TwitterClient(object):
         else:
             return {"type": 'neutral', "raw": analysis.sentiment}
 
+    def get_top_keywords(self, tweets):
+        '''
+        Get the top keywords for a tweet and store them
+        '''
+        words = []
+        bloblist = []
+        for tweet in tweets:
+            bloblist.append(TextBlob(tweet["text"]));
+
+        for i, blob in enumerate(bloblist):
+            scores = {word: self.tfidf(word, blob, bloblist) for word in blob.words}
+            sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            for word, score in sorted_words[:3]:
+                words.append(word);
+
+        return list(set(words)) #remove all the duplicates
+
     def get_tweets(self, query, count = 100, lang = 'en', until = None, result_type = "mixed", max_id = None):
         '''
         Main function to fetch tweets and parse them.
@@ -104,16 +141,16 @@ class TwitterClient(object):
         tweets = []
 
         if(until is None):
-            until = three_days_before();
+            until = days_before(0); #yesterday
 
         try:
             # call twitter api to fetch tweets
-            fetched_tweets = self.api.search(q = query, count = count, lang = lang, until = until, result_type = result_type, max_id = max_id)
+            fetched_tweets = self.api.search(q = query, count = count, lang = lang, until = until, result_type = result_type, max_id = max_id, include_entities = False, tweet_mode= "extended")
 
             # parsing tweets one by one
             for tweet in fetched_tweets:
                 # Ignore retweets
-                if re.match(r'^RT.*', tweet.text):
+                if re.match(r'^RT.*', tweet.full_text):
                     continue
 
                 # empty dictionary to store required params of a tweet
@@ -125,7 +162,7 @@ class TwitterClient(object):
                 #Save the created at date
                 parsed_tweet['created_at'] = tweet.created_at;
                 # saving text of tweet
-                parsed_tweet['text'] = self.clean_tweet(tweet.text)
+                parsed_tweet['text'] = self.clean_tweet(tweet.full_text)
                 # saving sentiment of tweet
                 sentiment_obj = self.get_tweet_sentiment(parsed_tweet['text'])
                 #Store the type of sentiment in place text ('negative', 'positive', 'neutral')
@@ -165,29 +202,37 @@ def main():
         lang [languge of the tweets to retrieve eg. 'en']
     '''
     max_id = None
-    until = api.three_days_before()
+    until = api.days_before(0) #for now, 0 means before today
     query = "Bitcoin"
-    result_type = "recent"
+    result_type = "mixed" #mixture of popular and recent
 
     tweets = [] #Full list of tweets
 
     #Get list of tweets for the last few days
     print('Get tweets\n');
     limit = 0;
-    while limit <= 5:
+    CALLS_LIMIT = 5; # GET a sample of 5 sets of tweets for the day `until`
+    while limit < CALLS_LIMIT:
         new_tweets = []
         new_tweets = api.get_tweets(query = query, count = 100, lang = 'en', until = until, result_type = result_type, max_id = max_id)
         new_tweets.sort(key=lambda r: r['created_at'], reverse=True); # Sort based on newest to oldest
 
+        # If the last tweet we already have is the same as the first tweet in the new tweets list, remove it from the new tweets, we don't want it
+        # Note: this duplication happens due to twitter's api when using the max_id param
+        if(( len(tweets) > 0 and len(new_tweets) ) > 0 and ( tweets[len(tweets)-1]['id'] == new_tweets[0]['id']) ):
+            new_tweets.pop(0) #remove that first element, we already have it
+
         if(len(new_tweets) != 0):
             #concat the new tweets to our tweets list
             tweets = tweets + new_tweets
-            print('got (%d) tweets\n' % (len(new_tweets)));
-            #Get the last tweet in the set and set max_id to be that tweets id
+            print('Tweets now: [%d] > We just got (%d) new tweets\n' % (len(tweets), len(new_tweets)));
+
+            #Get the first tweet in the set and set max_id to be that tweets id
             max_id = new_tweets[len(new_tweets)-1]['id']
             limit+=1;
         else:
             #We got no tweets back. Must mean there are no more tweets left in after 'Until'
+            print("%d Calls made to Twitter API" % (limit))
             break; #stop looping
 
     # NOW GIVE US A RUNDOWN OF THE TWEETS FOR THE LAST `until` timespan
@@ -215,7 +260,7 @@ def main():
 
     # printing top negative tweets
     print("\n> Most Negative tweets (Sentiment - TEXT):")
-    for tweet in sorted(ntweets, key=lambda k: k['sentimentPolarity'], reverse=True)[:10]:
+    for tweet in sorted(ntweets, key=lambda k: k['sentimentPolarity'])[:10]:
         print("%.2f - %s" % (tweet['sentimentPolarity'], tweet['text']) ).encode('utf-8')
 
     # Print out most Engaged Tweets
@@ -239,6 +284,17 @@ def main():
     if(count == 0):
         print('none...');
 
+    #STATS:
+    print("\n Stats:");
+    print("Time Span: %s to %s" % (tweets[0]['created_at'], tweets[len(tweets)-1]['created_at']))
+    print("Number of Tweets: %d" % (len(tweets)) )
+    print("Total Favourites: %d" % (sum(tweet['engagement']['likes'] for tweet in tweets)))
+    print("Total Retweets: %d" % (sum(tweet['engagement']['retweets'] for tweet in tweets)))
+    print('Keywords:')
+    for keyword in api.get_top_keywords(tweets):
+        print(keyword)
+
+    #END - Stats
 
 if __name__ == "__main__":
     # calling main function
