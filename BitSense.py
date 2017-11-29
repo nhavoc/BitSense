@@ -7,8 +7,11 @@ import json
 import operator # for sorting dictionaries
 import nltk
 nltk.download('punkt')
+nltk.download('stopwords')
+from rake_nltk import Rake
 from tweepy import OAuthHandler
 from textblob import TextBlob
+from nltk.corpus import stopwords
 
 #for plotting the results
 import numpy as np
@@ -44,21 +47,6 @@ class TwitterClient(object):
     def days_before(self, days = 1):
         # Return the date for `days` days before DT in the format YYYY-MM-DD
         return (DT.date.today() - DT.timedelta(days=days)).strftime('%Y-%m-%d')
-
-    #-- KEYWORD ANALYSIS FUNCTIONS
-    #tf computes "term frequency" which is the number of times a word appears in a document
-    def tf(self, word, blob):
-        return blob.words.count(word) / len(blob.words)
-    #returns the number of documents containing word
-    def n_containing(self, word, bloblist):
-        return sum(1 for blob in bloblist if word in blob.words)
-    #computes "inverse document frequency" which measures how common a word is among all documents in bloblist
-    def idf(self, word, bloblist):
-        return math.log(len(bloblist) / (1 + self.n_containing(word, bloblist)))
-    #computes the TF-IDF score. It is simply the product of tf and idf.
-    def tfidf(self, word, blob, bloblist):
-        return self.tf(word, blob) * self.idf(word, bloblist)
-    # -- END KEYWORD ANALYSIS
 
 
     def clean_tweet(self, tweetText):
@@ -116,22 +104,18 @@ class TwitterClient(object):
         else:
             return {"type": 'neutral', "raw": analysis.sentiment}
 
-    def get_top_keywords(self, tweets):
+    def get_keyword_rankings(self, tweets):
         '''
-        Get the top keywords for a tweet and store them
+        Get the top keywords for a the given collection of tweets
+        https://github.com/csurfer/rake-nltk
         '''
-        words = []
-        bloblist = []
+        tweet_keyword_rankings = {} #key = tweet_id value is list of lists with score and keyword
         for tweet in tweets:
-            bloblist.append(TextBlob(tweet["text"]));
+            r = Rake()
+            r.extract_keywords_from_text(tweet["text"])
+            tweet_keyword_rankings[tweet['id']] = r.get_ranked_phrases_with_scores()
 
-        for i, blob in enumerate(bloblist):
-            scores = {word: self.tfidf(word, blob, bloblist) for word in blob.words}
-            sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-            for word, score in sorted_words[:3]:
-                words.append(word);
-
-        return list(set(words)) #remove all the duplicates
+        return tweet_keyword_rankings
 
     def get_tweets(self, query, count = 100, lang = 'en', until = None, result_type = "mixed", max_id = None):
         '''
@@ -291,8 +275,11 @@ def main():
     print("Total Favourites: %d" % (sum(tweet['engagement']['likes'] for tweet in tweets)))
     print("Total Retweets: %d" % (sum(tweet['engagement']['retweets'] for tweet in tweets)))
     print('Keywords:')
-    for keyword in api.get_top_keywords(tweets):
-        print(keyword)
+    keyword_rankings = api.get_keyword_rankings(tweets)
+
+    # TODO, we need to go through and do some analysis on the keywords
+    # for tweet_id, keywords_and_ranks in keyword_rankings:
+    #     print(tweet_id, keywords_and_ranks)
 
     #END - Stats
 
