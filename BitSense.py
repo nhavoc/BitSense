@@ -1,5 +1,5 @@
 import datetime as DT # date library for parsing dates
-import time
+import time, sys
 import re
 import math
 import tweepy
@@ -21,18 +21,21 @@ import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
 
-CALLS_LIMIT = 15; # GET a sample of `number` of sets of tweets for the day `until`
+CALLS_LIMIT = 50; # GET a sample of `number` of sets of tweets for the day `until`
+SEARCH = "Bitcoin" #What we are searching for on twitter
+
+# TODO. For now this script only does analysis for the day before today. we need to have it collecting data back in the past and continually for the future.
 
 #TODO: Twitter colllections for most valid tweets for the time https://developer.twitter.com/en/docs/tweets/curate-a-collection/overview/about_collections
 class TwitterClient(object):
     '''
-    Generic Twitter Class for sentiment analysis.
+    Generic Twitter Class for tweet analysis.
     '''
     def __init__(self):
         '''
         Class constructor or initialization method.
         '''
-        # keys and tokens from the Twitter Dev Console {REPLACE NAKUL's with a new accounts info}
+        # keys and tokens from the Twitter Dev Console {REPLACE NAKUL's with a new accounts info} TODO: Don't store this in plain text on github...
         # NOTE: Twitter Rate Limit is 180 calls to the search API every 15 minutes
         consumer_key = '9DTwWsyG7fW8kOwjAeVAcewTn'
         consumer_secret = 'wYe6CC9IFSYWpD3Aw7VOPUQTKcBRBXLlzkynQZIPNO0N2WObXq'
@@ -56,7 +59,10 @@ class TwitterClient(object):
 
 
     def clean_tweet(self, text):
-
+        '''
+        Clean the text of the tweet and remove all characters we don't care about as well as remove whitespace.
+        This makes it easy todo analysis on the text and makes it easier to display later
+        '''
         #Remove all line breaks [NOT WORKING ALL OF THE TIME! TODO]
         text = text.replace('\n', ' ')
         text = text.replace('\t', '')
@@ -153,11 +159,11 @@ class TwitterClient(object):
         counts = Counter(all_hashtags)
         all_hashtags = sorted(all_hashtags, key=counts.get, reverse=True)
 
-        return list(set(all_hashtags)) #turn into a set to remove the duplicates 
+        return list(set(all_hashtags)) #turn into a set to remove the duplicates
 
     def get_tweets(self, query, count = 100, lang = 'en', until = None, result_type = "mixed", max_id = None):
         '''
-        Main function to fetch tweets and parse them.
+        Main function to fetch tweets and parse/analyze them.
         '''
         # empty list to store parsed tweets
         tweets = []
@@ -212,7 +218,6 @@ class TwitterClient(object):
 def main():
     # creating object of TwitterClient Class
     api = TwitterClient()
-    # calling function to get tweets. ----->TRY REPLACING BITCOIN FOR ANY OTHER VALUE HERE TO GET THEIR SENTIMENTS!
 
     '''
         SEARCH QUERY PARAMS TO USE:
@@ -225,7 +230,7 @@ def main():
     '''
     max_id = None
     until = api.days_before(0) #for now, 0 means before today
-    query = "Bitcoin"
+    query = SEARCH
     result_type = "mixed" #mixture of popular and recent
 
     tweets = [] #Full list of tweets
@@ -238,7 +243,8 @@ def main():
         new_tweets = api.get_tweets(query = query, count = 100, lang = 'en', until = until, result_type = result_type, max_id = max_id)
 
         if(len(new_tweets) > 0):
-            new_tweets.sort(key=lambda r: r['created_at'], reverse=True); # Sort based on newest to oldest
+            # Sort based on newest to oldest tweets
+            new_tweets.sort(key=lambda r: r['created_at'], reverse=True);
 
         # If the last tweet we already have is the same as the first tweet in the new tweets list, remove it from the new tweets, we don't want it
         # Note: this duplication happens due to twitter's api when using the max_id param
@@ -246,9 +252,14 @@ def main():
             new_tweets.pop(0) #remove that first element, we already have it
 
         if(len(new_tweets) != 0):
-            #concat the new tweets to our tweets list
+            #concat the new tweets to our full tweets list
             tweets = tweets + new_tweets
-            print('Tweets now: [%d] > We just got (%d) new tweets\n' % (len(tweets), len(new_tweets)));
+
+            #SHOW OUTPUT OF GATHERING TWEETS
+            msg = u"\u001b[1000D" + 'Tweets now: ['+str(len(tweets))+'] > We just got ('+str(len(new_tweets))+') new tweets\n'
+            sys.stdout.write("\r {:<70}".format(msg)) # Pad with extra spaces
+            sys.stdout.flush()
+            # END SHOW OUTPUT
 
             #Get the first tweet in the set and set max_id to be that tweets id
             max_id = new_tweets[len(new_tweets)-1]['id']
@@ -258,7 +269,8 @@ def main():
             print("%d Calls made to Twitter API" % (limit))
             break; #stop looping
 
-    # NOW GIVE US A RUNDOWN OF THE TWEETS FOR THE LAST `until` timespan
+    # NOW GIVE US A RUNDOWN OF THE TWEETS FOR THE current `until` timespan
+    #TODO Later, we will turn all this data into a storeable form for MONGODB
     print("# of tweets: %d" % (len(tweets)) )
     print("Time Span: %s to %s" % (tweets[0]['created_at'], tweets[len(tweets)-1]['created_at']))
     # picking positive tweets from tweets
@@ -336,7 +348,7 @@ def main():
     print(u" \u001b[1m\u001b[36mTotal Retweets\u001b[0m: %d" % (sum(tweet['engagement']['retweets'] for tweet in tweets)))
     tags = api.get_top_tags(tweets) #Later use this data for more analysis (note its sorted by most frequently used)
     print(" Top Tags (10): %s" % (', '.join(tags[:10])))
-    #END - Statsq
+    #END - Stats
 
 if __name__ == "__main__":
     # calling main function
