@@ -11,9 +11,10 @@
 
 ## What libraries you need to install to run the BitSense Script
 
-`pip install rake-nltk`
-`pip install matplotlib`
-`pip install tweepy`
-`pip install nltk`
-`pip install textblob`
-`pip install numpy`
+* `pip install rake-nltk`
+* `pip install matplotlib`
+* `pip install tweepy`
+* `pip install nltk`
+* `pip install textblob`
+* `pip install numpy`
+* Note: There may be more...
