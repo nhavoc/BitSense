@@ -3,6 +3,7 @@ import time
 import re
 import math
 import tweepy
+import random
 import json
 import operator # for sorting dictionaries
 import nltk
@@ -12,12 +13,17 @@ from rake_nltk import Rake
 from tweepy import OAuthHandler
 from textblob import TextBlob
 from nltk.corpus import stopwords
+from collections import Counter
 
-#for plotting the results
+#for plotting the results (WE NEED MORE DATA FROM MULTIPLE DATES TODO THIS)
 import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
+
+CALLS_LIMIT = 15; # GET a sample of `number` of sets of tweets for the day `until`
+
+#TODO: Twitter colllections for most valid tweets for the time https://developer.twitter.com/en/docs/tweets/curate-a-collection/overview/about_collections
 class TwitterClient(object):
     '''
     Generic Twitter Class for sentiment analysis.
@@ -49,14 +55,19 @@ class TwitterClient(object):
         return (DT.date.today() - DT.timedelta(days=days)).strftime('%Y-%m-%d')
 
 
-    def clean_tweet(self, tweetText):
-        text = tweetText
+    def clean_tweet(self, text):
 
-        #Remove all line breaks
-        text = text.replace('\n', ' ').replace('\r', '').replace('|', ' ').rstrip('\r\n')
+        #Remove all line breaks [NOT WORKING ALL OF THE TIME! TODO]
+        text = text.replace('\n', ' ')
+        text = text.replace('\t', '')
+        text = text.replace('\r', '')
+        text = text.strip()
+
+        #Remove extra spaces (multiple)
+        text = ' '.join(text.split())
 
         # Remove all non-ascii characters
-        text = ''.join((c for c in tweetText if 0 < ord(c) < 127))
+        text = ''.join((c for c in text if 0 < ord(c) < 127))
 
         # Normalize case
         text = text.lower()
@@ -80,6 +91,7 @@ class TwitterClient(object):
         text = re.sub(r'\bsux\b', 'sucks', text)
         text = re.sub(r'\bno+\b', 'no', text)
         text = re.sub(r'\bcoo+\b', 'cool', text)
+        text = re.sub(r'&amp;', '&', text)
 
         #Don't need to worry about emoticons apparently (text blob ignores them or handles them well)
 
@@ -104,18 +116,44 @@ class TwitterClient(object):
         else:
             return {"type": 'neutral', "raw": analysis.sentiment}
 
-    def get_keyword_rankings(self, tweets):
+    def get_important_content(self, tweets):
         '''
-        Get the top keywords for a the given collection of tweets
+        Gets the most important portions of text from the most engaged tweets
         https://github.com/csurfer/rake-nltk
         '''
-        tweet_keyword_rankings = {} #key = tweet_id value is list of lists with score and keyword
-        for tweet in tweets:
+
+        # Get all most important text of tweets
+        important_text_in_tweets = []
+
+        #Get the top 20 retweeted tweets [Most important]
+        top_retweeted = sorted(tweets, key=lambda k: k['engagement']['retweets'], reverse=True)[:20]
+
+        #Sort the top retweeted by their likes (somewhat important)
+        top_retweeted = sorted(tweets, key=lambda k: k['engagement']['likes'], reverse=True)
+
+        #Grab the top 10 of the most important tweets and get the most valid content inside each tweet
+        for tweet in top_retweeted[:10]:
             r = Rake()
             r.extract_keywords_from_text(tweet["text"])
-            tweet_keyword_rankings[tweet['id']] = r.get_ranked_phrases_with_scores()
+            most_important_content_in_tweet = r.get_ranked_phrases()[:3] #Get the top 3 ranked phrases from tweet (probably most important)
+            important_text_in_tweets = important_text_in_tweets + most_important_content_in_tweet; # Put the keywords found in the tweet into the list of other keywords
 
-        return tweet_keyword_rankings
+        # NOTE. I thought about doing some more analysis. But this should be good for allowing us todo future analysis on what people were talking about generally in that set of tweets
+
+        return important_text_in_tweets
+
+    # Get the hashtags from all the tweets.
+    def get_top_tags(self, tweets):
+        all_hashtags = []
+        # Get all the hashtags
+        for tweet in tweets:
+            all_hashtags = all_hashtags + [i  for i in tweet['text'].split() if i.startswith("#")]
+
+        #Sort by frequency (most frequent first)
+        counts = Counter(all_hashtags)
+        all_hashtags = sorted(all_hashtags, key=counts.get, reverse=True)
+
+        return list(set(all_hashtags)) #turn into a set to remove the duplicates 
 
     def get_tweets(self, query, count = 100, lang = 'en', until = None, result_type = "mixed", max_id = None):
         '''
@@ -193,13 +231,14 @@ def main():
     tweets = [] #Full list of tweets
 
     #Get list of tweets for the last few days
-    print('Get tweets\n');
+    print('Get %d sets of tweets...\n' % (CALLS_LIMIT));
     limit = 0;
-    CALLS_LIMIT = 5; # GET a sample of 5 sets of tweets for the day `until`
     while limit < CALLS_LIMIT:
         new_tweets = []
         new_tweets = api.get_tweets(query = query, count = 100, lang = 'en', until = until, result_type = result_type, max_id = max_id)
-        new_tweets.sort(key=lambda r: r['created_at'], reverse=True); # Sort based on newest to oldest
+
+        if(len(new_tweets) > 0):
+            new_tweets.sort(key=lambda r: r['created_at'], reverse=True); # Sort based on newest to oldest
 
         # If the last tweet we already have is the same as the first tweet in the new tweets list, remove it from the new tweets, we don't want it
         # Note: this duplication happens due to twitter's api when using the max_id param
@@ -220,68 +259,84 @@ def main():
             break; #stop looping
 
     # NOW GIVE US A RUNDOWN OF THE TWEETS FOR THE LAST `until` timespan
-    print('\n');
+    print("# of tweets: %d" % (len(tweets)) )
+    print("Time Span: %s to %s" % (tweets[0]['created_at'], tweets[len(tweets)-1]['created_at']))
     # picking positive tweets from tweets
     ptweets = [tweet for tweet in tweets if tweet['sentimentType'] == 'positive']
+    positive_percentage = 100*len(ptweets)/len(tweets)
     # percentage of positive tweets
-    print("Positive tweets percentage: {} %".format(100*len(ptweets)/len(tweets)))
+    print(u"\u001b[32mPositive tweets percentage:\u001b[0m {} %".format(positive_percentage))
 
     # picking negative tweets from tweets
     nttweets = [tweet for tweet in tweets if tweet['sentimentType'] == 'neutral']
     # percentage of negative tweets
-    print("Neutral tweets percentage: {} %".format(100*len(nttweets)/len(tweets)))
+    print(u"\u001b[37;1mNeutral tweets percentage:\u001b[0m {} %".format(100*len(nttweets)/len(tweets)))
 
     # picking negative tweets from tweets
     ntweets = [tweet for tweet in tweets if tweet['sentimentType'] == 'negative']
+    negative_percentage = 100*len(ntweets)/len(tweets);
     # percentage of negative tweets
-    print("Negative tweets percentage: {} %".format(100*len(ntweets)/len(tweets)))
+    print(u"\u001b[31;1mNegative tweets percentage:\u001b[0m {} %".format(negative_percentage))
+
+    #General Consensus
+    good_or_bad = 'meh'
+    if(negative_percentage > positive_percentage):
+        good_or_bad = "Negative"
+    else:
+        good_or_bad = "Positive"
+    print(u"General Consenses is: %s" % (good_or_bad))
+
     print('\n');
 
     # printing top positive tweets
-    print("> Most Positive tweets (Sentiment - TEXT):")
+    print(u"\u001b[1m\u001b[32m> Most Positive tweets\u001b[0m (Sentiment - TEXT):")
     for tweet in sorted(ptweets, key=lambda k: k['sentimentPolarity'], reverse=True)[:10]:
-        print("%.2f - %s" % (tweet['sentimentPolarity'], tweet['text']) ).encode('utf-8')
+        print("   %.2f - %s" % (tweet['sentimentPolarity'], tweet['text']) ).encode('utf-8')
+
+    #Neutral Tweets
+    print(u"\n\u001b[1m\u001b[37;1m> Random sample of Neutral tweets\u001b[0m (TEXT-only):")
+    for tweet in [ nttweets[i] for i in sorted(random.sample(xrange(len(nttweets)), 10)) ]:
+        print("   - %s" % (tweet['text']) ).encode('utf-8')
 
     # printing top negative tweets
-    print("\n> Most Negative tweets (Sentiment - TEXT):")
+    print(u"\n\u001b[1m\u001b[31;1m> Most Negative tweets\u001b[0m (Sentiment - TEXT):")
     for tweet in sorted(ntweets, key=lambda k: k['sentimentPolarity'])[:10]:
-        print("%.2f - %s" % (tweet['sentimentPolarity'], tweet['text']) ).encode('utf-8')
+        print("   %.2f - %s" % (tweet['sentimentPolarity'], tweet['text']) ).encode('utf-8')
 
     # Print out most Engaged Tweets
     # Most Retweeted Tweets
-    print("\n> Top 5 Retweeted Tweets:")
+    print(u"\n\u001b[1m\u001b[36m> Top 5 Retweeted Tweets:\u001b[0m")
     count = 0;
     for tweet in sorted(tweets, key=lambda k: k['engagement']['retweets'], reverse=True)[:5]:
         if(tweet['engagement']['retweets'] != 0):
             count+=1
-            print("%d - %s" % (tweet['engagement']['retweets'], tweet['text']) ).encode('utf-8')
+            print("   %d - %s" % (tweet['engagement']['retweets'], tweet['text']) ).encode('utf-8')
     if(count == 0):
         print('none...');
 
     # Most Favourited Tweets
-    print("\n> Top 5 Favourited Tweets:")
+    print(u"\n\u001b[1m\u001b[33m> Top 5 Favourited Tweets:\u001b[0m")
     count = 0;
     for tweet in sorted(tweets, key=lambda k: k['engagement']['likes'], reverse=True)[:5]:
         if(tweet['engagement']['likes'] != 0):
             count+=1
-            print("%d - %s" % (tweet['engagement']['likes'], tweet['text']) ).encode('utf-8')
+            print("   %d - %s" % (tweet['engagement']['likes'], tweet['text']) ).encode('utf-8')
     if(count == 0):
         print('none...');
 
+    # Most Important Content Overall for the day
+    print(u"\n\u001b[34;1m> Most important Content:\u001b[0m")
+    important_content = api.get_important_content(tweets) #Returns full list of important content from the most engaged tweets (retweets and likes) [retweets are more important, likes are secondary]
+    for content in important_content[:15]:
+        print("   %s" % (content));
+
     #STATS:
-    print("\n Stats:");
-    print("Time Span: %s to %s" % (tweets[0]['created_at'], tweets[len(tweets)-1]['created_at']))
-    print("Number of Tweets: %d" % (len(tweets)) )
-    print("Total Favourites: %d" % (sum(tweet['engagement']['likes'] for tweet in tweets)))
-    print("Total Retweets: %d" % (sum(tweet['engagement']['retweets'] for tweet in tweets)))
-    print('Keywords:')
-    keyword_rankings = api.get_keyword_rankings(tweets)
-
-    # TODO, we need to go through and do some analysis on the keywords
-    # for tweet_id, keywords_and_ranks in keyword_rankings:
-    #     print(tweet_id, keywords_and_ranks)
-
-    #END - Stats
+    print("\nStats:");
+    print(u" \u001b[1m\u001b[33mTotal Favourites\u001b[0m: %d" % (sum(tweet['engagement']['likes'] for tweet in tweets)))
+    print(u" \u001b[1m\u001b[36mTotal Retweets\u001b[0m: %d" % (sum(tweet['engagement']['retweets'] for tweet in tweets)))
+    tags = api.get_top_tags(tweets) #Later use this data for more analysis (note its sorted by most frequently used)
+    print(" Top Tags (10): %s" % (', '.join(tags[:10])))
+    #END - Statsq
 
 if __name__ == "__main__":
     # calling main function
