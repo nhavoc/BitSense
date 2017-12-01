@@ -14,6 +14,7 @@ from tweepy import OAuthHandler
 from textblob import TextBlob
 from nltk.corpus import stopwords
 from collections import Counter
+from difflib import SequenceMatcher
 
 #for plotting the results (WE NEED MORE DATA FROM MULTIPLE DATES TODO THIS)
 import numpy as np
@@ -21,7 +22,7 @@ import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
 
-CALLS_LIMIT = 50; # GET a sample of `number` of sets of tweets for the day `until`
+CALLS_LIMIT = 25; # GET a sample of `number` of sets of tweets for the day `until`
 SEARCH = "Bitcoin" #What we are searching for on twitter
 
 # TODO. For now this script only does analysis for the day before today. we need to have it collecting data back in the past and continually for the future.
@@ -102,6 +103,32 @@ class TwitterClient(object):
         #Don't need to worry about emoticons apparently (text blob ignores them or handles them well)
 
         return text;
+
+    def remove_similar_tweets(self, tweets):
+        '''
+        Some tweets are similar to one another. If we find some that are, then we need to remove them from out tweets list
+        We want to most unique tweet set we can get to get more information.
+        Research: https://stackoverflow.com/questions/17388213/find-the-similarity-percent-between-two-strings
+        '''
+        # NOTE: don't try this on a large dataset, its only really for making sure we aren't showing super similar text to the user on displaying out data
+
+        dictionary = {} #Store all the unique tweets here
+        for tweet in tweets:
+            text = tweet['text'].decode('string_escape') #turn raw string into a string literal
+            # if theres a duplicate. Pick the most engaged tweet to replace the others
+            if(text in dictionary):
+                #okay we have a similar tweet
+                if(tweet['engagement']['retweets'] > dictionary[text]['engagement']['retweets']):
+                    #new tweet would have more engagements
+                    dictionary[text] = tweet #replace old tweet
+                else:
+                    continue; #Skipp this tweet, we have a similar one.
+            else:
+                dictionary[text] = tweet #uniq tweet
+
+        desired_list = dictionary.values()
+
+        return desired_list #
 
     def get_tweet_sentiment(self, tweetText):
         '''
@@ -255,8 +282,8 @@ def main():
             #concat the new tweets to our full tweets list
             tweets = tweets + new_tweets
 
-            #SHOW OUTPUT OF GATHERING TWEETS
-            msg = u"\u001b[1000D" + 'Tweets now: ['+str(len(tweets))+'] > We just got ('+str(len(new_tweets))+') new tweets\n'
+            #SHOW OUTPUT OF GATHERING TWEETS [TODO: Fix the flush not working]
+            msg = u"\u001b[1000D" + str(limit) + ' - Tweets now: ['+str(len(tweets))+'] {+} ('+str(len(new_tweets))+') new tweets\n'
             sys.stdout.write("\r {:<70}".format(msg)) # Pad with extra spaces
             sys.stdout.flush()
             # END SHOW OUTPUT
@@ -268,6 +295,9 @@ def main():
             #We got no tweets back. Must mean there are no more tweets left in after 'Until'
             print("%d Calls made to Twitter API" % (limit))
             break; #stop looping
+
+    # REMOVE SIMILAR TWEETS (some tweets are Retweets and need to be removed, we only care about the most engaged tweets vs the copycats)
+    tweets = api.remove_similar_tweets(tweets)
 
     # NOW GIVE US A RUNDOWN OF THE TWEETS FOR THE current `until` timespan
     #TODO Later, we will turn all this data into a storeable form for MONGODB
@@ -307,7 +337,10 @@ def main():
 
     #Neutral Tweets
     print(u"\n\u001b[1m\u001b[37;1m> Random sample of Neutral tweets\u001b[0m (TEXT-only):")
-    for tweet in [ nttweets[i] for i in sorted(random.sample(xrange(len(nttweets)), 10)) ]:
+    sample_size = 10
+    if(len(nttweets) < sample_size):
+        sample_size = len(nttweets)
+    for tweet in [ nttweets[i] for i in sorted(random.sample(xrange(len(nttweets)), sample_size)) ]:
         print("   - %s" % (tweet['text']) ).encode('utf-8')
 
     # printing top negative tweets
