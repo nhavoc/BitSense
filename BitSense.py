@@ -1,25 +1,18 @@
 import datetime as DT # date library for parsing dates
-import time, sys
+import sys
 import re
-import math
-import tweepy
 import random
-import json
-import operator # for sorting dictionaries
 import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
+import tweepy
 from rake_nltk import Rake
 from tweepy import OAuthHandler
 from textblob import TextBlob
-from nltk.corpus import stopwords
 from collections import Counter
-from difflib import SequenceMatcher
 
-#for plotting the results (WE NEED MORE DATA FROM MULTIPLE DATES TODO THIS)
-import numpy as np
-import matplotlib.mlab as mlab
-import matplotlib.pyplot as plt
+#for plotting the results (WE NEED MORE DATA FROM MULTIPLE DATES TODO THIS) TODO LATER
+# import numpy as np
+# import matplotlib.mlab as mlab
+# import matplotlib.pyplot as plt
 
 
 CALLS_LIMIT = 25; # GET a sample of `number` of sets of tweets for the day `until`
@@ -275,7 +268,7 @@ def main():
 
         # If the last tweet we already have is the same as the first tweet in the new tweets list, remove it from the new tweets, we don't want it
         # Note: this duplication happens due to twitter's api when using the max_id param
-        if(( len(tweets) > 0 and len(new_tweets) ) > 0 and ( tweets[len(tweets)-1]['id'] == new_tweets[0]['id']) ):
+        if((len(tweets) > 0 and len(new_tweets) > 0)  and ( tweets[len(tweets)-1]['id'] == new_tweets[0]['id']) ):
             new_tweets.pop(0) #remove that first element, we already have it
 
         if(len(new_tweets) != 0):
