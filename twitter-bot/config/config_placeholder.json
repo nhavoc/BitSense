@@ -1,0 +1,17 @@
+{
+  "development":
+  {},
+  "production":
+  {},
+  "all":
+  {
+    "twitter":
+    {
+      "consumer_key": "",
+      "consumer_secret": "",
+      "access_token": "",
+      "access_token_secret": ""
+    }
+  }
+}
+// DONT USE THIS, this is what you need to make config.json look like
