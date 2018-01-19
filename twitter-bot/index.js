@@ -6,6 +6,26 @@
 
   let Twitter = new Twit(twitterConfig);
 
+  //Pull list of ranked influencers from mongo, (go through, check if we follow them or not, if not, follow them (this will be our list?))
+
+  //Pull all most recent tweets from those main influencers
+
+  //Grab their sentiment for each tweet
+
+  //Compare each tweet's submission date with the bitcoin price.
+
+  //Correlation? (if so, save that tweet)
+
+  //All the tweets that were correlating for that day, combine into a single tweet.
+
+  //Submit the tweet to cryptosense-bot
+  //  FORMAT: BTC price today at 12pm: $12000 USD
+  //          Top 5 most popular influencial tweets:
+  //          - RT @philip12342 Bitcoin is going to $100K !
+
+  //TODO, do additional analysis weekly of the price and our predictions for the price the following week.
+
+
   var params = {
     q: '#bitcoin, #Bitcoin, #BITCOIN', // REQUIRED
     result_type: 'recent',
@@ -20,22 +40,6 @@
       for (var i = 0; i < data.statuses.length; i++) {
         console.log(data.statuses[i].text);
       }
-      // Tell TWITTER to retweet
-      // Twitter.post('statuses/retweet/:id', {
-      //   id: retweetId
-      // }, function(err, response) {
-      //   if (response) {
-      //     console.log('Retweeted!!!');
-      //   }
-      //   // if there was an error while tweeting
-      //   if (err) {
-      //     console.log('Something went wrong while RETWEETING... Duplication maybe...');
-      //   }
-      // });
-    }
-    // if unable to Search a tweet
-    else {
-      console.log('Something went wrong while SEARCHING...');
     }
   });
 
