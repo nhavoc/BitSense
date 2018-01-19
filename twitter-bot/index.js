@@ -8,11 +8,11 @@
 
   //Pull list of ranked influencers from mongo, (go through, check if we follow them or not, if not, follow them (this will be our list?))
 
-  //Pull all most recent tweets from those main influencers
+  //Pull all most popular tweets from those main influencers (that contain the coin reference)
 
   //Grab their sentiment for each tweet
 
-  //Compare each tweet's submission date with the bitcoin price.
+  //Compare each tweet's submission date with the bitcoin price a few hours later.
 
   //Correlation? (if so, save that tweet)
 
@@ -24,7 +24,6 @@
   //          - RT @philip12342 Bitcoin is going to $100K !
 
   //TODO, do additional analysis weekly of the price and our predictions for the price the following week.
-
 
   var params = {
     q: '#bitcoin, #Bitcoin, #BITCOIN', // REQUIRED
