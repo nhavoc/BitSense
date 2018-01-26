@@ -1,12 +1,14 @@
 {
-  "development":
-  {},
-  "production":
-  {},
-  "all":
-  {
-    "twitter":
-    {
+  "development": {
+    "db": {
+      "host": "127.0.0.1",
+      "database": "cryptosense",
+      "port": 27017
+    },
+  },
+  "production": {},
+  "all": {
+    "twitter": {
       "consumer_key": "",
       "consumer_secret": "",
       "access_token": "",

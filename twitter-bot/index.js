@@ -1,23 +1,21 @@
 (function() {
   const Chalk = require('chalk');
   const config = require('./config');
-  const twitterConfig = config.twitter;
-  const Twit = require('twit');
-  const InfluencerRanker = require('./rank_influencers.js');
-  const mongoose = null;// = require('mongoose');
+  const InfluencerRetriever = require('./get_influencers.js');
+  let mongoose = null; // = require('mongoose');
 
-  let Twitter = new Twit(twitterConfig);
-
-  let influenceRanker = new InfluencerRanker(Twitter, mongoose);
-
-  const INFLUENCER_LIMIT = 5; //how many influencers to pull from the ranked list and store
+  let influencerRetriever = new InfluencerRetriever();
 
   //RUN all the logic asyncronyously
-  const logic = (async () => {
+  const logic = (async() => {
+    //First connect to mongodb
+    mongoose = await require('./mongo.connect.js');
 
     //Get a list of influencers ranked by their level of engagement (initially we aren't going to store them, just do it on the fly...)
-    influenceRanker.init(['#BTC', '$BTC', "#BITCOIN", "#bitcoin", "@bitcoin"], INFLUENCER_LIMIT);
-    var results = await influenceRanker.search();''
+    influencerRetriever.init(['#BTC', '$BTC', "#BITCOIN", "#bitcoin", "@bitcoin"]);
+    var results = await influencerRetriever.search(); //Finds new influencers
+
+
 
     //Pull all most popular tweets from those main influencers (that contain the coin reference)
 
