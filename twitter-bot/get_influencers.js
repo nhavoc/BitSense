@@ -20,13 +20,9 @@
   const SAMPLE_SIZE = 50; //Number of tweets to retrieve (out of 100)
   const RESULT_TYPE = "mixed"; //recent, mixed, popular
 
-  let InfluencerRanker = function() {
+  let InfluencerRanker = function(searchTerms) {
     this.mostPopularTweets = [];
     this.lastTweet = null;
-
-    this.init = function(searchTerms) {
-      this.searchTerms = searchTerms;
-    };
 
     this.search = async function() {
       var self = this; //Reference to the class instance
@@ -36,7 +32,7 @@
         //For each search term we have. Lets look for the TOP tweets
         var tasks = [];
 
-        for (var i = 0; i < self.searchTerms.length; i++) {
+        for (var i = 0; i < searchTerms.length; i++) {
           tasks.push(function(searchTerm) {
             return function(cb) {
               var params = {
@@ -84,7 +80,7 @@
                 }
               });
             }
-          }(self.searchTerms[i]));
+          }(searchTerms[i]));
         }
 
         async.series(tasks, function(err, results) {
