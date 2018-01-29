@@ -1,15 +1,18 @@
 (function() {
   const Chalk = require('chalk');
+  const Async = require('async');
   const config = require('./config');
+  const models = require('./models');
   const InfluencerRetriever = require('./get_influencers.js');
   const InfluencerActions = require('./actions_influencers.js');
-  const InfluencerExplore = require('./explore_influencers.js'); //Logic class for searching what effect the influencer may have on the price of the currency
-  let mongoose = null; // = require('mongoose');
+  const InfluencerScore = require('./score_influencers.js'); //Logic class for searching what effect the influencer may have on the price of the currency
+  let mongoose = null; // = require('mongoose');'
+  const Influencer = models.Influencer;
 
   let searchTerms = ['#BTC', '$BTC', "#BITCOIN", "#bitcoin", "@bitcoin"];
   let influencerRetriever = new InfluencerRetriever(searchTerms);
   let influencerActions = new InfluencerActions(searchTerms);
-  let influencerExplore = new InfluencerExplore(searchTerms);
+  let influencerScore = new InfluencerScore();
 
   //RUN all the logic asyncronyously
   const logic = (async() => {
@@ -21,23 +24,77 @@
 
     //Get all the people that the bot is following (INFLUENCERS we've checked in the past)
     var followerIdsList = await influencerActions.getFollowersList("cryptosensebot");
+    console.log("People following cryptosensebot: ", followerIdsList.length);
 
-    //Existing followers/influencers that we have been following for a whille
+    //----------------------------------------------------------------------
+    //Existing followers/influencers that we have been following for a while
     // Step 1: Grab the last tweet we have on file for them
     // Step 2: Find all the tweets made by them since that archived tweets.
     // step 3: Add those new tweets, and reanalyze the influencer Score
+    var reanalyzedCount = await new Promise(function(resolve, reject) {
+      Influencer.find({ influenceChecked: true }, function(err, influencers) {
+        if (!err && influencers.length > 0) {
+          console.log("GRABBING NEW TWEETS FROM (", influencers.length, ") influencers...");
 
+          //new tweets
 
+          //Reanalyze
+
+          //NOTE DO THIS AFTER THHE SECOND STUFF BELOW!
+          resolve();
+          console.log("TODO");
+        } else {
+          if (err)
+            reject(err);
+          else {
+            console.log("-")
+            resolve(0);
+          }
+        }
+      });
+    });
+
+    //----------------------------------------------------------------------
     //Now get all of our influencers that we haven't checked the influence of
-    // Step 1: Follow those new influencers (this gives us access to their timelines and tweets (all time)
-    // Step 2: Check their tweets for `searchTerms`
-    // Step 3: Store the tweets that relate to bitcoin
+    var newInfluencersAnalyzed = await new Promise(function(resolve, reject) {
+      console.log("Analyzing new influencers...")
+      Influencer.find({ influenceChecked: false }, function(err, influencers) {
+        var tasks = [];
+        console.log(influencers.length)
+
+        for (var i = 0; i < influencers.length; i++) {
+          var obj = influencers[i];
+          tasks.push(function(influencer) {
+            return function(cb) {
+              // Step 1: Check their tweets for the `searchTerms`
+              console.log("Get tweets for", influencer.acccountName)
+              influencerActions.getTweets(influencer).then(function(tweets) {
+                console.log("TODO, search ", tweets.length, "tweets");
+                // Step 2: Store the tweets that relate to bitcoin
+              }, function(err) {
+                console.log("PROBLEM GETTING USER", influencer.accountName, "TWEETS")
+              })
+            };
+          }(obj))
+        }
+
+        Async.series(tasks, function(err, outputs) {
+          if (err) {
+            reject(err)
+          } else {
+            resolve(outputs.length);
+          }
+        });
+      });
+    });
+    console.log("New influencers analyzed:", newInfluencersAnalyzed);
+    //----------------------------------------------------------------------
 
 
     //FOR ALL INFLUENCERS we have in mongo. Re-compute their influencer score based on their tweets
     // Step 1: see what influence (via time) they have on bitcoin price)
 
-    console.log("People following cryptosensebot: ", followerIdsList.length)
+
 
 
 

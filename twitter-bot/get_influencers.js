@@ -49,7 +49,7 @@
                   var formattedTweets = [];
                   for (var j = 0; j < data.statuses.length; j++) {
                     //For each tweet
-                    formattedTweets.push({ user: { fullName: data.statuses[j].user.name, accountName: data.statuses[j].user.screen_name, followers: data.statuses[j].user.followers_count, description: data.statuses[j].user.description, }, date: data.statuses[j].created_at, text: data.statuses[j].text, retweets: data.statuses[j].retweet_count, id: data.statuses[j].id, retweetedByMe: data.statuses[j].retweeted });
+                    formattedTweets.push({ user: { fullName: data.statuses[j].user.name, accountName: data.statuses[j].user.screen_name, followers: data.statuses[j].user.followers_count, description: data.statuses[j].user.description, userId: data.statuses[j].user.id_str }, date: data.statuses[j].created_at, text: data.statuses[j].text, retweets: data.statuses[j].retweet_count, id: data.statuses[j].id, retweetedByMe: data.statuses[j].retweeted });
                   }
                   if (formattedTweets.length > 0) {
                     //Sort by date, grab the last one
@@ -128,7 +128,7 @@
             //SAVE THESE INFLUENCERS or update existing
             var bulk = Influencer.collection.initializeUnorderedBulkOp(); //Setup to do a bulk insert
             for (var i = 0; i < uniqInfluencers.length; i++) {
-              bulk.find({ "accountName": uniqInfluencers[i].accountName }).upsert().updateOne({ $setOnInsert: uniqInfluencers[i] });
+              bulk.find({"influenceChecked": false, "accountName": uniqInfluencers[i].accountName }).upsert().updateOne({ $setOnInsert: uniqInfluencers[i] });
             }
 
             bulk.execute(function(err, result) {
