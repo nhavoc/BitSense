@@ -11,11 +11,19 @@
     description: { type: String }, //Influencer's Desc on twitter
     followers: { type: Number }, //The total number of followers the influencer has
     foundOn: { type: Date, default: Date.now() }, //When the influencer was found
-    tweets: [{ type: Object }], //List of influence tweets (only the most influencial?)
+    tweets: [{
+      id: {type: String, required: true},
+      text: { type: String, required: true },
+      dateRaw: {type: String, require: true},
+      dateUnix: {type: Number, required: true},
+      sentiment: { type: Number } //MIKE?
+    }], //List of influence tweets (only the most influencial?)
+    tweetsAnalyzedCount: {type: Number},
     influenceChecked: { type: Boolean, default: false }, //If we have gone through all this influencers content and checked how it has influenced the price
     influenceScore: { type: Number }, //How much influence we think this influencer's content has on the price?
-    followed: {type:Boolean},
-    sinceId: {type: String} //The last tweet we processed
+    followed: { type: Boolean },
+    sinceID: { type: Number }, //see tweet_analysis.js
+    maxID: { type: Number } //see tweet_analysis.js
   });
 
   module.exports.Influencer = mongoose.model('Influencer', influencerSchema);

@@ -9,7 +9,7 @@
   let mongoose = null; // = require('mongoose');'
   const Influencer = models.Influencer;
 
-  let searchTerms = ['#BTC', '$BTC', "#BITCOIN", "#bitcoin", "@bitcoin"];
+  let searchTerms = ['#BTC', '$BTC', "#BITCOIN", "#Bitcoin", "#bitcoin", "@bitcoin", "bitcoin", "BTC"];
   let influencerRetriever = new InfluencerRetriever(searchTerms);
   let influencerActions = new InfluencerActions(searchTerms);
   let influencerScore = new InfluencerScore();
@@ -27,38 +27,10 @@
     console.log("People following cryptosensebot: ", followerIdsList.length);
 
     //----------------------------------------------------------------------
-    //Existing followers/influencers that we have been following for a while
-    // Step 1: Grab the last tweet we have on file for them
-    // Step 2: Find all the tweets made by them since that archived tweets.
-    // step 3: Add those new tweets, and reanalyze the influencer Score
-    var reanalyzedCount = await new Promise(function(resolve, reject) {
-      Influencer.find({ influenceChecked: true }, function(err, influencers) {
-        if (!err && influencers.length > 0) {
-          console.log("GRABBING NEW TWEETS FROM (", influencers.length, ") influencers...");
-
-          //new tweets
-
-          //Reanalyze
-
-          //NOTE DO THIS AFTER THHE SECOND STUFF BELOW!
-          resolve();
-          console.log("TODO");
-        } else {
-          if (err)
-            reject(err);
-          else {
-            console.log("-")
-            resolve(0);
-          }
-        }
-      });
-    });
-
-    //----------------------------------------------------------------------
     //Now get all of our influencers that we haven't checked the influence of
     var newInfluencersAnalyzed = await new Promise(function(resolve, reject) {
       console.log("Analyzing new influencers...")
-      Influencer.find({ influenceChecked: false }, function(err, influencers) {
+      Influencer.find({}, function(err, influencers) {
         var tasks = [];
         console.log(influencers.length)
 
@@ -67,13 +39,27 @@
           tasks.push(function(influencer) {
             return function(cb) {
               // Step 1: Check their tweets for the `searchTerms`
-              console.log("Get tweets for", influencer.acccountName)
-              influencerActions.getTweets(influencer).then(function(tweets) {
-                console.log("TODO, search ", tweets.length, "tweets");
-                // Step 2: Store the tweets that relate to bitcoin
-              }, function(err) {
-                console.log("PROBLEM GETTING USER", influencer.accountName, "TWEETS")
-              })
+              console.log("Get tweets for", influencer.accountName)
+              //Search all tweets made by the influencer for new tweets with once of the search terms. Save them
+              function getTweets(callback) {
+                influencerActions.getTweetsAndAnalyze(influencer).then(function(info) {
+                  //info object: totalInfluencerRelatedTweets, analyzedTweetsCount, searchTermsTweetsCount
+                  if (info.analyzedTweetsCount == 0) {
+                    console.log("DONE getting tweets for:", influencer.accountName)
+                    callback(); //done
+                  } else {
+                    //Get more!
+                    console.log("total:", info.totalInfluencerRelatedTweets, "analyzed:", info.analyzedTweetsCount, "NEW:", (info.searchTermsTweetsCount) ? Chalk.green(info.searchTermsTweetsCount.toString() + "++") : '' )
+                    getTweets(callback);
+                  }
+                }, function(err) {
+                  console.log("PROBLEM GETTING USER", influencer.accountName, "TWEETS")
+                  callback(err);
+                })
+              }
+
+              getTweets(cb); //Start off the chain
+
             };
           }(obj))
         }
