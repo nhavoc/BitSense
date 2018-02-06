@@ -27,19 +27,18 @@
     console.log("People following cryptosensebot: ", followerIdsList.length);
 
     //----------------------------------------------------------------------
-    //Now get all of our influencers that we haven't checked the influence of
-    var newInfluencersAnalyzed = await new Promise(function(resolve, reject) {
+    //Now get all of our influencers tweets
+    var influencersAnalyzed = await new Promise(function(resolve, reject) {
       console.log("Analyzing new influencers...")
       Influencer.find({}, function(err, influencers) {
         var tasks = [];
-        console.log(influencers.length)
 
         for (var i = 0; i < influencers.length; i++) {
           var obj = influencers[i];
           tasks.push(function(influencer) {
             return function(cb) {
               // Step 1: Check their tweets for the `searchTerms`
-              console.log("Get tweets for", influencer.accountName)
+              console.log("Getting ",((influencer.tweetsAnalyzedCount > 0) ? Chalk.blue("RECENT") : Chalk.yellow("ALL") ),"tweets for", influencer.accountName)
               //Search all tweets made by the influencer for new tweets with once of the search terms. Save them
               function getTweets(callback) {
                 influencerActions.getTweetsAndAnalyze(influencer).then(function(info) {
@@ -66,6 +65,8 @@
 
         Async.series(tasks, function(err, outputs) {
           if (err) {
+            console.log(Chalk.red("THERE WAS AN ERROR :S"));
+            console.log(Chalk.red(err));
             reject(err)
           } else {
             resolve(outputs.length);
@@ -73,7 +74,7 @@
         });
       });
     });
-    console.log("New influencers analyzed:", newInfluencersAnalyzed);
+    console.log("Influencers analyzed:", influencersAnalyzed);
     //----------------------------------------------------------------------
 
 

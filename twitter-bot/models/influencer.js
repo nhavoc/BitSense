@@ -18,12 +18,12 @@
       dateUnix: {type: Number, required: true},
       sentiment: { type: Number } //MIKE?
     }], //List of influence tweets (only the most influencial?)
-    tweetsAnalyzedCount: {type: Number},
+    tweetsAnalyzedCount: {type: Number, default: 0},
     influenceChecked: { type: Boolean, default: false }, //If we have gone through all this influencers content and checked how it has influenced the price
     influenceScore: { type: Number }, //How much influence we think this influencer's content has on the price?
     followed: { type: Boolean },
-    sinceID: { type: Number }, //see tweet_analysis.js
-    maxID: { type: Number } //see tweet_analysis.js
+    sinceID: { type: String }, //see tweet_analysis.js
+    maxID: { type: String } //see tweet_analysis.js
   });
 
   module.exports.Influencer = mongoose.model('Influencer', influencerSchema);
