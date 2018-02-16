@@ -1,6 +1,6 @@
 (function() {
   // Author: Matthew Rowlandson
-  // Purpose: The action methods for the twitter bot, following influencers, retweeting tweets etc'
+  // Purpose: The action methods for the twitter bot, following influencers, retweeting tweets, getting related tweets etc
 
   const config = require('./config');
   const twitterConfig = config.twitter;
@@ -109,7 +109,22 @@
         var before = influencer.tweets.length; //keep track of how many tweets we had before this pull
         Twitter.get("statuses/user_timeline", params, function(err, tweets, response) {
           if (err || response.statusCode != 200) {
-            return reject(err || "Twitter returned an odd status code during tweet retrieval")
+            // If the error is 404, that means the influencer no longer exists
+            if(response.statusCode == 404){
+              console.log("USER ", influencer.accountName, "NO LONGER EXISTS. Removing influencer...");
+              influencer.remove(function(err){
+                if(err){
+                  console.log("ERROR REMOVING INFLUENCER...");
+                }else{
+                  console.log("Influencer removed from mongo :)");
+                }
+
+                resolve(null)
+              });
+            } else {
+              reject(err || "Twitter returned an odd status code during tweet retrieval")
+            }
+            return;
           } else {
             if (tweets.length == 0) {
               console.log("No tweets, done for user");

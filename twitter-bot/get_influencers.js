@@ -1,6 +1,6 @@
 (function() {
   // Author: Matthew Rowlandson
-  // InfluencerRanker
+  // InfluencerRetriever
   // Purpose: This class will go through twitter searching for the most important influencers for a search term/terms.
   //          It is only a retrieval tool for a list of influencers that it then saves to MongoDB
   //          DO NOTE: There are going to be a lot of garbage influencers we retrieve. That is to be expected. We need to create some sort of ranking system to filter out the junk to find the gold. See rank_influencers.js
