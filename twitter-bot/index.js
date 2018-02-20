@@ -95,6 +95,7 @@
     // Step 4: Bitcoin to non bitcoin tweet percentage [More chatter is bad?]
 
     if (RANK_INFLUENCERS) {
+      console.log("Rank influencers process started");
       console.log("RANKING INFLUENCERS...")
     }
 
@@ -126,5 +127,9 @@
 
   logic();
 
+
+  //Run other processes HERE
+  //TODO bitcoin price realtime monitor HERE
+  //
 
 }());
